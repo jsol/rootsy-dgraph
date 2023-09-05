@@ -17,7 +17,9 @@
 .cheader {
     width: 100%;
     padding-left: 15px;
+    padding-top: 5px;
     font-size: 18px;
+    text-transform: capitalize;
 }
 
 .cheader-review {
@@ -67,9 +69,10 @@
 
 .wrapper {
     padding: 0px;
-    margin: 30px;
+    margin-left: auto;
+    margin-right: auto;
     min-width: 240px;
-    width: calc(var(--row-standard, calc(min(100vw, 1680px) - (20px + (72 - 20) * (min(100vw, 1680px) - 320px) / (1440 - 320)) * 2)))
+    max-width: 720;
 }
 
 article {
@@ -100,8 +103,23 @@ article {
 article img {
     margin-bottom: 15px;
     margin-right: 15px;
+    float:left;
 }
 
+@media (max-width:400px) {
+
+    article img {
+        margin-bottom: 15px;
+        margin-right: auto;
+        margin-left: auto;
+        float:initial;
+    }
+}
+
+.text::first-letter {
+    initial-letter: 2;
+    margin-right: 3px;
+}
 body {
     margin: 0;
     background-color: #CCCCCC;
