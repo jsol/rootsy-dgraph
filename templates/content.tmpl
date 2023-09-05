@@ -1,0 +1,24 @@
+{{ define "content" }}
+{{ template "header"  .Name  }}
+  <article>
+<h3>{{ .Name }}</h3>
+<img src="/css/image.jpg">
+
+
+<div>
+   {{ escapeText .Text }}
+</div>
+Skrivet av {{ range .WrittenBy }} {{ .Name }} {{end}}
+</article>
+</div>
+{{ if .Content}}
+    {{ template "contentList" .Content }}
+{{end}}
+{{ template "footer"  }}
+
+<script>
+setTimeout(() => {
+    fetch("/read/{{ .Uid }}")
+}, 120*1000);
+</script>
+{{end}}
