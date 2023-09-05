@@ -112,7 +112,43 @@ type ExtraContent struct {
 }
 
 func escapeText(input string) template.HTML {
+	input = template.HTMLEscapeString(input)
 	input = regexp.MustCompile(`\n`).ReplaceAllString(input, "<br>")
+	input = regexp.MustCompile(`\[b\](.*?)\[/b\]`).ReplaceAllString(input, "<b>$1</b>")
+	input = regexp.MustCompile(`\[i\](.*?)\[/i\]`).ReplaceAllString(input, "<i>$1</i>")
+	input = regexp.MustCompile(`\[url http://youtu.be/(.*?)\](.*?)\[/url\]`).ReplaceAllString(input, "<br clear='all'><center><iframe width='420' height='315' src='http://www.youtube.com/embed/$1?rel=0' frameborder='0' allowfullscreen></iframe></center>")
+	input = regexp.MustCompile(`\[http://www.rootsy.nu/(.*?)\]`).ReplaceAllString(input, "<a href='$1'>www.rootsy.nu/$1</a>")
+	input = regexp.MustCompile(`\[http://(.*?)\]`).ReplaceAllString(input, "<a href='http://$1' target='_blank'>$1</a>")
+	input = regexp.MustCompile(`\[url http://www.rootsy.nu/(.*?)\](.*?)\[/url\]`).ReplaceAllString(input, "<a href='http://www.rootsy.nu/$1'>$2</a>")
+	input = regexp.MustCompile(`\[url (.*?)\](.*?)\[/url\]`).ReplaceAllString(input, "<a href='$1' target='_blank'>$2</a>")
+	input = regexp.MustCompile(`\[img ([^ ]*?)\]`).ReplaceAllString(input, "<img src='http://www.rootsy.nu/bilder/extra/$1'>")
+	input = regexp.MustCompile(`\[img ([^ ]*?) (.*?)]`).ReplaceAllString(input, "<img src='http://www.rootsy.nu/bilder/extra/$1' TITLE='$2'>")
+	input = regexp.MustCompile(`\"(.*?)\"`).ReplaceAllString(input, "»$1«")
+	input = regexp.MustCompile(`<94>(.*?)<94>`).ReplaceAllString(input, "»$1«")
+	/**
+
+
+		v $replacements[] = "<br clear='all'><center><iframe width='420' height='315' src='http://www.youtube.com/embed/$1?rel=0' frameborder='0' allowfullscreen></iframe></center>";
+	        $replacements[] = "<a href='\$1'>www.rootsy.nu/\$1</a>";
+	        $replacements[] = "<a href='http://\$1' target='_blank'>\$1</a>";
+	        $replacements[] = "<a href='http://www.rootsy.nu/\$1'>\$2</a>";
+	        $replacements[] = "<a href='\$1' target='_blank'>\$2</a>";
+	        $replacements[] = "<img src='http://www.rootsy.nu/bilder/extra/\$1' id='bild2'>";
+	        $replacements[] = "<img src='http://www.rootsy.nu/bilder/extra/\$1' id='bild2' TITLE='$2'>";
+	        $replacements[] = "»$1«";
+	        $replacements[] = "»$1«";
+
+			       $patterns[] = "|\[url http://youtu.be/(.*?)\](.*?)\[/url\]|s";
+		        $patterns[] = "|\[http://www.rootsy.nu/(.*?)\]|s";
+		        $patterns[] = "|\[http://(.*?)\]|s";
+		        $patterns[] = "|\[url http://www.rootsy.nu/(.*?)\](.*?)\[/url\]|s";
+		        $patterns[] = "|\[url (.*?)\](.*?)\[/url\]|s";
+		        $patterns[] = "|\[img ([^ ]*?)\]|s";
+		        $patterns[] = "|\[img ([^ ]*?) (.*?)]|s";
+		        $patterns[] = "|\"(.*?)\"|s";
+		        $patterns[] = "|<94>(.*?)<94>|s";
+
+	*/
 	return template.HTML(input)
 }
 
@@ -444,6 +480,8 @@ func printContent(uid string, wr io.Writer, ctx context.Context) {
 
 		fmt.Println(c2.Name)
 	}
+
+	fmt.Println("Spotify", c.Spotify)
 	executeTemplate(wr, "content", c)
 }
 

@@ -2,8 +2,12 @@
 {{ template "header"  .Name  }}
   <article>
 <h3>{{ .Name }}</h3>
-<img src="/css/image.jpg">
-
+<div class="contentImage">
+<img src="{{ .Pic }}">
+{{ if .Spotify }}
+<a href="{{ .Spotify }}" target="_blank"><img src="/css/spotify.png"></a>
+{{ end }}
+</div>
 
 <div class="text">
    {{ escapeText .Text }}
