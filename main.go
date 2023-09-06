@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	dgo "github.com/dgraph-io/dgo/v230"
 	"github.com/dgraph-io/dgo/v230/protos/api"
@@ -108,6 +109,7 @@ type ExtraContent struct {
 	LeadInText string `json:"lead_in_text"`
 	Pic        string `json:"pic"`
 	Type       string `json:"type"`
+	TypeText   string `json:"type_text"`
 	WrittenBy  string `json:"written_by"`
 }
 
@@ -164,6 +166,17 @@ func artistNames(list []DGraphArtist) string {
 }
 func toUrl(name string) string {
 	return regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(name, "")
+}
+
+func typeText(name string) string {
+	switch name {
+	case "review":
+		return "Recension"
+	case "article":
+		return "Artikel"
+	default:
+		return name
+	}
 }
 
 func printStart(wr io.Writer, ctx context.Context) {
@@ -241,7 +254,7 @@ func printStart(wr io.Writer, ctx context.Context) {
 }
 
 func executeTemplate(wr io.Writer, name string, content any) {
-	t, err := template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "artistsNames": artistNames, "toUrl": toUrl}).ParseGlob("templates/*.tmpl")
+	t, err := template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "artistsNames": artistNames, "toUrl": toUrl, "typeText": typeText}).ParseGlob("templates/*.tmpl")
 	//t, err := template.ParseGlob("templates/*.tmpl")
 
 	if err != nil {
@@ -311,6 +324,7 @@ func apiExtraContent(w http.ResponseWriter, r *http.Request) {
 			LeadInText: c.LeadInText,
 			Pic:        c.Pic,
 			Type:       c.Type,
+			TypeText:   typeText(c.Type),
 			WrittenBy:  c.WrittenBy[0].Name,
 		})
 	}
@@ -593,12 +607,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func readCounter(w http.ResponseWriter, r *http.Request) {
-	parts := strings.SplitN(r.URL.Path, "/", 4)
-	if len(parts) < 3 {
+	parts := strings.SplitN(r.URL.Path, "/", 5)
+	if len(parts) < 4 {
 		return
 	}
 	fmt.Printf("Read: %s", parts[2])
-	updateCounter(parts[2], r.Context())
+	updateCounter(parts[2], parts[3], r.Context())
 }
 
 func sse(w http.ResponseWriter, r *http.Request) {
@@ -690,7 +704,7 @@ func updateRandom(content []DGraphContent, dg *dgo.Dgraph, ctx context.Context) 
 	}
 }
 
-func updateCounter(uid string, ctx context.Context) {
+func updateCounter(uid, uuid string, ctx context.Context) {
 	conn, err := grpc.Dial("127.0.0.1:9080", grpc.WithInsecure())
 	if err != nil {
 		log.Fatal("While trying to dial gRPC")
@@ -750,13 +764,45 @@ func updateCounter(uid string, ctx context.Context) {
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	txn = dg.NewTxn()
+	defer txn.Discard(ctx)
+	ts := time.Now().Format(time.RFC3339)
+
+	fmt.Println(ts)
+
+	q = `query Viewer($terms: string){
+		Q(func:eq(uuid, $terms)) {
+			v as uid
+		}
+	}`
+	mu = &api.Mutation{
+		SetNquads: []byte(`uid(v) <uuid> "` + uuid + `" .
+		uid(v) <dgraph.type> "Viewer" .
+		uid(v) <content> <` + uid + `> (time=` + ts + `) .`),
+	}
+
+	fmt.Println(`viewer <uuid> "` + uuid + `" .
+	viewer <dgraph.type> "Viewer" .
+	viewer <content> "` + uid + `" (time=` + ts + `) .`)
+	req := &api.Request{
+		Query:     q,
+		Mutations: []*api.Mutation{mu},
+		Vars:      map[string]string{"$terms": uuid},
+		CommitNow: true,
+	}
+	_, err = txn.Do(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func main() {
 
 	port = 9090
 
-	updateCounter("0x6bb5", context.Background())
+	updateCounter("0xbcc1", "jenson-uuid", context.Background())
+	updateCounter("0xbcc4", "jenson-uuid", context.Background())
 
 	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("./css"))))
 	http.HandleFunc("/read/", readCounter)

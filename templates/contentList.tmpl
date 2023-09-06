@@ -5,7 +5,7 @@
 
   <div class="contentListItem">
 <a href="/content/{{ .Uid }}/{{ toUrl .Name }}" >
-  <div class="cheader cheader-{{ .Type }}">{{ .Type }} </div>
+  <div class="cheader cheader-{{ .Type }}">{{ typeText .Type }} </div>
   <img src="{{ .Pic }}">
   <div class="innerItem">
   <h3>{{ .Name }}</h3>
@@ -40,9 +40,10 @@
         $c.querySelector(".writtenBy").innerHTML = i.written_by
 
         $header = $c.querySelector(".cheader")
-        $header.classList.remove("cheader-" + $header.innerHTML.trim())
-        $header.innerHTML = i.type
+        $header.classList.value= ""
+        $header.innerHTML = i.type_text
         $header.classList.add("cheader-" + i.type)
+        $header.classList.add("cheader")
         $cl.append($c)
       }
     }
