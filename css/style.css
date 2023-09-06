@@ -82,17 +82,31 @@ article {
 }
 
 .contentListItem {
-    flex: 1;
+    position:relative;
     background-color: white;
     padding: 0px;
     flex-direction: column;
-    width: 240px;
-
+    width: 220px;
     border: 1px solid black;
+    height: 500px;
+    overflow: hidden;
 }
 
 .contentListItem img, .contentListItem .innerItem {
     margin: 10px;
+}
+
+.fade-out {
+    z-index: 3;
+    position: absolute;
+    content:'';
+    width:100%;
+    height:100%;
+    left:0;
+    top:0;
+    border:1px solid red;
+    background:linear-gradient(transparent 400px, white);
+
 }
 
 .contentList a {
