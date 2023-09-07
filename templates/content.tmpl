@@ -22,7 +22,11 @@ Skrivet av {{ range .WrittenBy }} {{ .Name }} {{end}}
 
 <script>
 setTimeout(() => {
-    fetch("/read/{{ .Uid }}")
+
+    if (!sessionStorage.uuid) {
+      sessionStorage.uuid = crypto.randomUUID()
+    }
+    fetch("/read/{{ .Uid }}/" + sessionStorage.uuid)
 }, 120*1000);
 </script>
 {{end}}
