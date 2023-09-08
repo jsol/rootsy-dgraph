@@ -174,6 +174,8 @@ func typeText(name string) string {
 		return "Recension"
 	case "article":
 		return "Artikel"
+	case "chart":
+		return "Toplista"
 	default:
 		return name
 	}
@@ -321,7 +323,7 @@ func apiExtraContent(w http.ResponseWriter, r *http.Request) {
 			Name:       c.Name,
 			Uid:        c.Uid,
 			Url:        fmt.Sprintf("/content/%s/%s", c.Uid, toUrl(c.Name)),
-			LeadInText: c.LeadInText,
+			LeadInText: string(escapeText(c.LeadInText)),
 			Pic:        c.Pic,
 			Type:       c.Type,
 			TypeText:   typeText(c.Type),
