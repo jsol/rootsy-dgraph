@@ -249,10 +249,63 @@ func printStart(wr io.Writer, ctx context.Context) {
 
 	startContent := []DGraphContent{}
 	pickContent("", &startContent, resp.Extra, 16)
-	pickContent("", &startContent, resp.Rootsy[0].Content, 16)
+	pickContent("", &startContent, resp.Rootsy[0].Content, 24)
 	updateRandom(startContent, dg, ctx)
 
+	rand.Shuffle(len(startContent), func(i, j int) {
+		startContent[i], startContent[j] = startContent[j], startContent[i]
+	})
+
 	executeTemplate(wr, "start", startContent)
+}
+
+func printSearch(search string, wr io.Writer, ctx context.Context) {
+
+	conn, err := grpc.Dial("127.0.0.1:9080", grpc.WithInsecure())
+	if err != nil {
+		log.Fatal("While trying to dial gRPC")
+	}
+	defer conn.Close()
+
+	dc := api.NewDgraphClient(conn)
+	dg := dgo.NewDgraphClient(dc)
+
+	q := `query Search ($terms: string){
+		Content(func:allofterms(name, $terms))  @filter(type(Content)){
+		  	name
+			lead_in_text
+			type
+			uid
+			pic
+			published_at
+			artist {
+				name
+			}
+			written_by {
+				name
+			}
+		}
+	}`
+
+	txn := dg.NewTxn()
+	defer txn.Discard(ctx)
+
+	res, err := txn.QueryWithVars(ctx, q, map[string]string{"$terms": search})
+	if err != nil {
+
+		panic(err.Error())
+	}
+
+	var resp ContentResponse
+
+	//fmt.Println(string(res.Json))
+	err = json.Unmarshal(res.Json, &resp)
+
+	if err != nil {
+		panic(err)
+	}
+
+	executeTemplate(wr, "search", resp.Content)
 }
 
 func executeTemplate(wr io.Writer, name string, content any) {
@@ -589,6 +642,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			printArtist(parts[2], w, r.Context())
 		case "content":
 			printContent(parts[2], w, r.Context())
+		case "search":
+			printSearch(strings.Join(r.URL.Query()["terms"], " "), w, r.Context())
 		default:
 			printStart(w, r.Context())
 		}

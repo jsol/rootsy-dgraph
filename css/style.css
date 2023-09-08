@@ -4,9 +4,31 @@
     box-sizing: border-box;
 }
 .header {
+    position:relative;
     width: 100%;
     height: 42px;
     background-color: #d25c02;
+}
+.search {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+}
+
+.search input {
+    font-family: inherit;
+    font-size: 100%;
+    line-height: 1.15;
+    border: 1px solid black;
+    border-radius: 3;
+    outline-style: none;
+    outline-width: 0px;
+    height: 30px;
+}
+
+.signoff {
+    font-style: italic;
+    margin-top: 15px;
 }
 .writtenBy {
     font-style: italic;

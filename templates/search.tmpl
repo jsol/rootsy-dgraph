@@ -1,0 +1,18 @@
+{{ define "search" }}
+{{ template "header"  "Rootsy.nu"  }}
+<article>
+<h3>Sökresultat</h3>
+
+{{ if . }}
+{{ else }}
+Kunde inte hitta något.
+{{end }}
+</article>
+</div>
+
+{{ if . }}
+{{ template "contentList" . }}
+{{end}}
+
+{{ template "footer"  }}
+{{end}}
