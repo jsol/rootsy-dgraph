@@ -9,6 +9,16 @@
     height: 42px;
     background-color: #d25c02;
 }
+
+form {
+    border: 1px solid black;
+    border-radius: 30px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 10px;
+    padding-right: 10px;
+    background-color: white;
+}
 .search {
     position: absolute;
     top: 5px;
@@ -19,11 +29,16 @@
     font-family: inherit;
     font-size: 100%;
     line-height: 1.15;
-    border: 1px solid black;
-    border-radius: 3;
+    border: 0px;
     outline-style: none;
     outline-width: 0px;
-    height: 30px;
+    height: 20px;
+}
+
+@media (max-width:420px) {
+    .search input {
+        width: 100px;
+    }
 }
 
 .signoff {
@@ -58,13 +73,13 @@
 
 #upper {
     position: relative;
-    left:40px;
+    left:20px;
 }
 
 #lower {
     position: relative;
     display:block;
-    left: 40px;
+    left: 20px;
     margin-top:0px;
 }
 
@@ -97,7 +112,7 @@
     padding: 0px;
     margin-left: auto;
     margin-right: auto;
-    min-width: 240px;
+    min-width: 300px;
     max-width: 720;
 }
 
@@ -109,6 +124,8 @@ article {
 
 .contentListItem {
     position:relative;
+    margin-left: auto;
+    margin-right: auto;
     background-color: white;
     padding: 0px;
     flex-direction: column;
@@ -130,7 +147,7 @@ article {
     height:100%;
     left:0;
     top:0;
-    border:1px solid red;
+
     background:linear-gradient(transparent 400px, white);
 
 }

@@ -29,6 +29,6 @@ setTimeout(() => {
       sessionStorage.uuid = crypto.randomUUID()
     }
     fetch("/read/{{ .Uid }}/" + sessionStorage.uuid)
-}, 120*1000);
+}, 30*1000);
 </script>
 {{end}}
