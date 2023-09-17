@@ -36,6 +36,7 @@ type DGraphArtist struct {
 	Pic          string          `json:"pic"`
 	Pictext      string          `json:"picText"`
 	Content      []DGraphContent `json:"content"`
+	NumContent   int             `json:"num_content"`
 	DType        string          `json:"dgraph.type,omitempty"`
 }
 
@@ -176,6 +177,8 @@ func typeText(name string) string {
 		return "Artikel"
 	case "chart":
 		return "Toplista"
+	case "pitch":
+		return "Tips"
 	default:
 		return name
 	}
@@ -424,6 +427,9 @@ func printContent(uid string, wr io.Writer, ctx context.Context) {
 		  	spotify
 		  	artist{
 				name
+				uid
+				pic
+				num_content: count(~artist)
 				content: ~artist  (first:10, orderasc:read_count, orderasc:random){
 					name
 					lead_in_text
@@ -607,6 +613,7 @@ func printArtist(uid string, wr io.Writer, ctx context.Context) {
 	}
 
 	executeTemplate(wr, "artist", resp.Artist[0])
+
 }
 
 func hasContent(haystack *[]DGraphContent, needle string) bool {

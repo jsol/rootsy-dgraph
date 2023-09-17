@@ -15,7 +15,12 @@
 <div class = "signoff">
 Skrivet av {{ range .WrittenBy }} {{ .Name }} {{end}}
 </div>
+
+{{ if .Artist }}
+  {{ template "artistList" .Artist }}
+{{ end }}
 </article>
+
 </div>
 {{ if .Content}}
     {{ template "contentList" .Content }}

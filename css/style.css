@@ -68,7 +68,10 @@ form {
 }
 .cheader-chart {
     background-color: #e2e26c;
+}
 
+.cheader-pitch {
+    background-color: #6ce2e2;
 }
 
 #upper {
@@ -120,6 +123,7 @@ article {
     margin: 0px;
     padding: 10px;
     background-color: white;
+    min-height: 300px;
 }
 
 .contentListItem {
@@ -157,6 +161,39 @@ article {
     color: black;
 }
 
+.artistList {
+    margin-left: 10px;
+    margin-top: 30px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gutter, 30px);
+    margin-top: 30px;
+    width: 100%;
+}
+
+
+.artistList a {
+    text-decoration: none;
+    color: black;
+
+}
+
+
+.artistListItem {
+    position:relative;
+    background-color: white;
+    padding: 0px;
+    flex-direction: column;
+    width: 200px;
+    border: 1px solid black;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.artistListItem .innerItem{
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
 .contentImage {
     margin-bottom: 15px;
     margin-right: 15px;
@@ -179,10 +216,6 @@ article {
     }
 }
 
-.text::first-letter {
-    initial-letter: 2;
-    margin-right: 3px;
-}
 body {
     margin: 0;
     background-color: #CCCCCC;

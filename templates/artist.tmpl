@@ -1,9 +1,13 @@
 {{ define "artist" }}
 {{ template "header" "test app" }}
+<article>
 <h3> {{ escapeText .Name }}</h3>
-<div> Hello</div>
-<div>About artist</div>
-
+<div class="contentImage">
+<img src="{{ .Pic }}">
+</div>
+<div>{{ escapeText .Presentation }}</div>
+</article>
+</div>
 {{ if .Content}}
     {{ template "contentList" .Content }}
 {{end}}

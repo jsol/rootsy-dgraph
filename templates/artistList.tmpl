@@ -1,0 +1,18 @@
+{{define "artistList" }}
+<div id ="al" class="artistList">
+{{range .}}
+
+
+  <div class="artistListItem">
+<a href="/artist/{{ .Uid }}/{{ toUrl .Name }}" >
+  <img src="{{ .Pic }}">
+  <div class="innerItem">
+    <b>{{ .Name }}</b><br>
+    <div class="count">{{ .NumContent }} olika inlägg</div>
+  </div>
+  </a>
+  </div>
+
+{{end}}
+  </div>
+{{end}}
