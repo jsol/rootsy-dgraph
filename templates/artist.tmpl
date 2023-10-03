@@ -6,6 +6,13 @@
 <img src="{{ .Pic }}">
 </div>
 <div>{{ escapeText .Presentation }}</div>
+{{ if .Link }}
+  <div id = "links">
+  {{ range .Link }}
+    <a href="{{ .Href }}" target="_blank">{{ .Text }}</a><br>
+  {{ end }}
+  </div>
+{{ end }}
 </article>
 </div>
 {{ if .Content}}

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -9,6 +11,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -20,13 +23,30 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-type DGraphLink struct {
-	Id string `json:"uid,omitempty"`
+type application struct {
+	auth struct {
+		username [32]byte
+		password [32]byte
+	}
+	spotify_cred struct {
+		key    string
+		secret string
+	}
+	port      int
+	sp        *Spotify
+	conn      *grpc.ClientConn
+	templates *template.Template
+	debug     bool
 }
 
-var port int
+type DGraphLink struct {
+	Id   string `json:"uid,omitempty"`
+	Text string `json:"text"`
+	Href string `json:"href"`
+}
 
 type DGraphArtist struct {
 	Id           int64           `json:"oldId"`
@@ -37,6 +57,7 @@ type DGraphArtist struct {
 	Pictext      string          `json:"picText"`
 	Content      []DGraphContent `json:"content"`
 	NumContent   int             `json:"num_content"`
+	Link         []DGraphLink    `json:"link"`
 	DType        string          `json:"dgraph.type,omitempty"`
 }
 
@@ -59,7 +80,7 @@ type DGraphLabel struct {
 }
 
 type DGraphContent struct {
-	Id          int64               `json:"oldId"`
+	Id          string              `json:"oldId"`
 	Uid         string              `json:"uid,omitempty"`
 	Name        string              `json:"name"`
 	Text        string              `json:"text"`
@@ -112,6 +133,20 @@ type ExtraContent struct {
 	Type       string `json:"type"`
 	TypeText   string `json:"type_text"`
 	WrittenBy  string `json:"written_by"`
+}
+
+type UpdateSpotify struct {
+	Uid     string `json:"uid"`
+	Spotify string `json:"spotify"`
+}
+
+type PrintSpotify struct {
+	Name    string
+	Artist  string
+	Id      string
+	OldId   string
+	Image   string
+	Options []SpotifyOption
 }
 
 func escapeText(input string) template.HTML {
@@ -184,15 +219,9 @@ func typeText(name string) string {
 	}
 }
 
-func printStart(wr io.Writer, ctx context.Context) {
+func (app *application) printStart(wr io.Writer, ctx context.Context) {
 
-	conn, err := grpc.Dial("127.0.0.1:9080", grpc.WithInsecure())
-	if err != nil {
-		log.Fatal("While trying to dial gRPC")
-	}
-	defer conn.Close()
-
-	dc := api.NewDgraphClient(conn)
+	dc := api.NewDgraphClient(app.conn)
 	dg := dgo.NewDgraphClient(dc)
 
 	q := `query Content {
@@ -259,22 +288,16 @@ func printStart(wr io.Writer, ctx context.Context) {
 		startContent[i], startContent[j] = startContent[j], startContent[i]
 	})
 
-	executeTemplate(wr, "start", startContent)
+	app.executeTemplate(wr, "start", startContent)
 }
 
-func printSearch(search string, wr io.Writer, ctx context.Context) {
+func (app *application) printSearch(search string, wr io.Writer, ctx context.Context) {
 
-	conn, err := grpc.Dial("127.0.0.1:9080", grpc.WithInsecure())
-	if err != nil {
-		log.Fatal("While trying to dial gRPC")
-	}
-	defer conn.Close()
-
-	dc := api.NewDgraphClient(conn)
+	dc := api.NewDgraphClient(app.conn)
 	dg := dgo.NewDgraphClient(dc)
 
 	q := `query Search ($terms: string){
-		Content(func:allofterms(name, $terms))  @filter(type(Content)){
+		Content(func:allofterms(name, $terms), first: 20)  @filter(type(Content)){
 		  	name
 			lead_in_text
 			type
@@ -308,32 +331,21 @@ func printSearch(search string, wr io.Writer, ctx context.Context) {
 		panic(err)
 	}
 
-	executeTemplate(wr, "search", resp.Content)
+	app.executeTemplate(wr, "search", resp.Content)
 }
 
-func executeTemplate(wr io.Writer, name string, content any) {
-	t, err := template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "artistsNames": artistNames, "toUrl": toUrl, "typeText": typeText}).ParseGlob("templates/*.tmpl")
-	//t, err := template.ParseGlob("templates/*.tmpl")
+func (app *application) executeTemplate(wr io.Writer, name string, content any) {
 
-	if err != nil {
-		panic(err)
-	}
-
-	err = t.ExecuteTemplate(wr, name, content)
+	err := app.templates.ExecuteTemplate(wr, name, content)
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
-func apiExtraContent(w http.ResponseWriter, r *http.Request) {
+func (app *application) apiExtraContent(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	conn, err := grpc.Dial("127.0.0.1:9080", grpc.WithInsecure())
-	if err != nil {
-		log.Fatal("While trying to dial gRPC")
-	}
-	defer conn.Close()
 
-	dc := api.NewDgraphClient(conn)
+	dc := api.NewDgraphClient(app.conn)
 	dg := dgo.NewDgraphClient(dc)
 
 	q := `query Content {
@@ -391,15 +403,9 @@ func apiExtraContent(w http.ResponseWriter, r *http.Request) {
 	w.Write(pb)
 }
 
-func printContent(uid string, wr io.Writer, ctx context.Context) {
+func (app *application) printContent(uid string, wr io.Writer, ctx context.Context) {
 
-	conn, err := grpc.Dial("127.0.0.1:9080", grpc.WithInsecure())
-	if err != nil {
-		log.Fatal("While trying to dial gRPC")
-	}
-	defer conn.Close()
-
-	dc := api.NewDgraphClient(conn)
+	dc := api.NewDgraphClient(app.conn)
 	dg := dgo.NewDgraphClient(dc)
 
 	q := `query Content($terms: string) {
@@ -524,18 +530,12 @@ func printContent(uid string, wr io.Writer, ctx context.Context) {
 
 	}
 	for _, l := range c.WrittenBy {
-		fmt.Println(" =================== ")
-
-		fmt.Println("By: ")
 		for _, c2 := range l.Content {
 
 			fmt.Println(c2.Name)
 		}
 		pickContent(c.Uid, &c.Content, l.Content, 14)
 	}
-
-	fmt.Println(" =================== ")
-	fmt.Println("EXTRA: ")
 
 	for _, c2 := range resp.Extra {
 		fmt.Println(c2.Name)
@@ -556,19 +556,16 @@ func printContent(uid string, wr io.Writer, ctx context.Context) {
 		fmt.Println(c2.Name)
 	}
 
-	fmt.Println("Spotify", c.Spotify)
-	executeTemplate(wr, "content", c)
+	if c.Spotify == "x" {
+		c.Spotify = ""
+	}
+
+	app.executeTemplate(wr, "content", c)
 }
 
-func printArtist(uid string, wr io.Writer, ctx context.Context) {
+func (app *application) printArtist(uid string, wr io.Writer, ctx context.Context) {
 
-	conn, err := grpc.Dial("127.0.0.1:9080", grpc.WithInsecure())
-	if err != nil {
-		log.Fatal("While trying to dial gRPC")
-	}
-	defer conn.Close()
-
-	dc := api.NewDgraphClient(conn)
+	dc := api.NewDgraphClient(app.conn)
 	dg := dgo.NewDgraphClient(dc)
 
 	q := `query Artist($terms: string) {
@@ -577,6 +574,10 @@ func printArtist(uid string, wr io.Writer, ctx context.Context) {
 		   	name
 		   	text
 		  	pic
+			link {
+				text
+				href
+			}
 			  content: ~artist{
 				name
 			   	lead_in_text
@@ -612,7 +613,7 @@ func printArtist(uid string, wr io.Writer, ctx context.Context) {
 		panic(err)
 	}
 
-	executeTemplate(wr, "artist", resp.Artist[0])
+	app.executeTemplate(wr, "artist", resp.Artist[0])
 
 }
 
@@ -640,25 +641,26 @@ func pickContent(current string, existing *[]DGraphContent, candidates []DGraphC
 	}
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func (app *application) handler(w http.ResponseWriter, r *http.Request) {
 
 	parts := strings.SplitN(r.URL.Path, "/", 4)
 	if len(parts) >= 3 {
 		switch parts[1] {
 		case "artist":
-			printArtist(parts[2], w, r.Context())
+			app.printArtist(parts[2], w, r.Context())
 		case "content":
-			printContent(parts[2], w, r.Context())
+			app.printContent(parts[2], w, r.Context())
 		case "search":
-			printSearch(strings.Join(r.URL.Query()["terms"], " "), w, r.Context())
+			app.printSearch(strings.Join(r.URL.Query()["terms"], " "), w, r.Context())
 		default:
-			printStart(w, r.Context())
+			app.printStart(w, r.Context())
 		}
 	} else {
-		printStart(w, r.Context())
+		app.printStart(w, r.Context())
 	}
-	fmt.Println(r.URL)
-	script := `<script>
+
+	if app.debug {
+		script := `<script>
 	const refresher = new EventSource("/sse")
 	refresher.onmessage = (event) => {
 		console.log("Event handler called!", event.data)
@@ -667,19 +669,20 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	</script>`
-	w.Write([]byte(script))
+		w.Write([]byte(script))
+	}
 }
 
-func readCounter(w http.ResponseWriter, r *http.Request) {
+func (app *application) readCounter(w http.ResponseWriter, r *http.Request) {
 	parts := strings.SplitN(r.URL.Path, "/", 5)
 	if len(parts) < 4 {
 		return
 	}
 	fmt.Printf("Read: %s", parts[2])
-	updateCounter(parts[2], parts[3], r.Context())
+	app.updateCounter(parts[2], parts[3], r.Context())
 }
 
-func sse(w http.ResponseWriter, r *http.Request) {
+func (app *application) sse(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("new SSE")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -700,7 +703,7 @@ func sse(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	err = watcher.Add("./css")
+	err = watcher.Add("./static")
 	if err != nil {
 		panic(err)
 	}
@@ -716,11 +719,20 @@ func sse(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if ev.Has(fsnotify.Write) {
-				w.Write([]byte("data: reload\n\n"))
-				if f, ok := w.(http.Flusher); ok {
-					f.Flush()
+				tmp, err := template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "artistsNames": artistNames, "toUrl": toUrl, "typeText": typeText}).ParseGlob("templates/*.tmpl")
+				//t, err := template.ParseGlob("templates/*.tmpl")
+
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					app.templates = tmp
+					w.Write([]byte("data: reload\n\n"))
+					if f, ok := w.(http.Flusher); ok {
+						f.Flush()
+					}
+					fmt.Println("Got event, sending...")
 				}
-				fmt.Println("Got event, sending...")
+
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -768,14 +780,9 @@ func updateRandom(content []DGraphContent, dg *dgo.Dgraph, ctx context.Context) 
 	}
 }
 
-func updateCounter(uid, uuid string, ctx context.Context) {
-	conn, err := grpc.Dial("127.0.0.1:9080", grpc.WithInsecure())
-	if err != nil {
-		log.Fatal("While trying to dial gRPC")
-	}
-	defer conn.Close()
+func (app *application) updateCounter(uid, uuid string, ctx context.Context) {
 
-	dc := api.NewDgraphClient(conn)
+	dc := api.NewDgraphClient(app.conn)
 	dg := dgo.NewDgraphClient(dc)
 
 	q := `query CounterQuery($terms: string) {
@@ -861,19 +868,254 @@ func updateCounter(uid, uuid string, ctx context.Context) {
 	}
 }
 
+func UpdateSpotifyUrl(uid, url string, dg *dgo.Dgraph, ctx context.Context) {
+	update := UpdateSpotify{
+		Uid:     uid,
+		Spotify: url,
+	}
+	pb, err := json.Marshal(update)
+	// Check error
+	if err != nil {
+		panic(err.Error())
+	}
+
+	txn := dg.NewTxn()
+	defer txn.Discard(ctx)
+
+	mu := &api.Mutation{
+		SetJson:   pb,
+		CommitNow: true,
+	}
+
+	_, err = txn.Mutate(ctx, mu)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func saveSpotify(oldid, url string) {
+	f, err := os.OpenFile("spotify.tab",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Println(err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(fmt.Sprintf("%s\t%s\n", oldid, url)); err != nil {
+		log.Println(err)
+	}
+}
+
+func (app *application) spotify(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	dc := api.NewDgraphClient(app.conn)
+	dg := dgo.NewDgraphClient(dc)
+
+	id := r.PostFormValue("id")
+
+	if id != "" {
+		saveSpotify(r.PostFormValue("oldid"), r.PostFormValue("url"))
+		UpdateSpotifyUrl(id, r.PostFormValue("url"), dg, ctx)
+	}
+
+	q := `query SpotifyQuery {
+		content (func: eq(spotify, "x"), first: 1) @filter(type(Content)) {
+			uid
+			oldId
+			pic
+			name: album
+      		artist {
+        		name
+      		}
+		}
+	  }`
+
+	txn := dg.NewTxn()
+	defer txn.Discard(ctx)
+
+	res, err := txn.Query(ctx, q)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	var resp ContentResponse
+
+	//fmt.Println(string(res.Json))
+	err = json.Unmarshal(res.Json, &resp)
+
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(resp)
+	if len(resp.Content) != 1 {
+		return
+	}
+
+	artistName := resp.Content[0].Artist[0].Name
+	album := resp.Content[0].Name
+
+	opts, err := app.sp.Search(strings.TrimSuffix(strings.TrimSuffix(artistName, ", The"), ", the"), album)
+
+	if err != nil {
+		fmt.Printf("Error searching Spotify: %v", err)
+	}
+	item := PrintSpotify{
+		Name:    album,
+		Artist:  artistName,
+		Id:      resp.Content[0].Uid,
+		OldId:   resp.Content[0].Id,
+		Image:   resp.Content[0].Pic,
+		Options: opts,
+	}
+
+	app.executeTemplate(w, "spotify", item)
+}
+
+func (app *application) handleOldContent(prefix, cat string, w http.ResponseWriter, r *http.Request) {
+
+	id := r.URL.Query()["id"]
+
+	if len(id) != 1 {
+		return
+	}
+
+	ctx := r.Context()
+
+	dc := api.NewDgraphClient(app.conn)
+	dg := dgo.NewDgraphClient(dc)
+
+	q := `query OldContent($terms: string) {
+		content (func: eq(oldId, $terms)) {
+			uid
+			name
+		}
+	  }`
+
+	txn := dg.NewTxn()
+	defer txn.Discard(ctx)
+
+	res, err := txn.QueryWithVars(ctx, q, map[string]string{"$terms": fmt.Sprintf("%s-%s", prefix, id[0])})
+	if err != nil {
+
+		panic(err.Error())
+	}
+
+	var resp DGraphContent
+
+	//fmt.Println(string(res.Json))
+	err = json.Unmarshal(res.Json, &resp)
+
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(resp)
+	if len(resp.Content) != 1 {
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("https://www.rootsy.nu/%s/%s/%s", cat, resp.Content[0].Uid, toUrl(resp.Content[0].Name)), 301)
+}
+
+func (app *application) handleOldReview(w http.ResponseWriter, r *http.Request) {
+	app.handleOldContent("r", "content", w, r)
+}
+
+func (app *application) handleOldArticle(w http.ResponseWriter, r *http.Request) {
+	app.handleOldContent("f", "content", w, r)
+}
+func (app *application) handleOldArtist(w http.ResponseWriter, r *http.Request) {
+	app.handleOldContent("a", "artist", w, r)
+}
+
+func (app *application) basicAuth(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		username, password, ok := r.BasicAuth()
+		if ok {
+			usernameHash := sha256.Sum256([]byte(username))
+			passwordHash := sha256.Sum256([]byte(password))
+
+			usernameMatch := (subtle.ConstantTimeCompare(usernameHash[:], app.auth.username[:]) == 1)
+			passwordMatch := (subtle.ConstantTimeCompare(passwordHash[:], app.auth.password[:]) == 1)
+
+			if usernameMatch && passwordMatch {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	})
+}
+
 func main() {
+	app := new(application)
+	app.port = 9090
 
-	port = 9090
+	user := os.Getenv("AUTH_USERNAME")
+	password := os.Getenv("AUTH_PASSWORD")
 
-	updateCounter("0xbcc1", "jenson-uuid", context.Background())
-	updateCounter("0xbcc4", "jenson-uuid", context.Background())
+	if user == "" {
+		log.Fatal("basic auth username must be provided")
+	}
 
-	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("./css"))))
-	http.HandleFunc("/read/", readCounter)
-	http.HandleFunc("/sse", sse)
-	http.HandleFunc("/api/content/extra", apiExtraContent)
-	http.HandleFunc("/", handler)                             // set router
-	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil) // set listen port
+	if password == "" {
+		log.Fatal("basic auth password must be provided")
+	}
+
+	app.auth.username = sha256.Sum256([]byte(user))
+	app.auth.password = sha256.Sum256([]byte(password))
+
+	app.spotify_cred.key = os.Getenv("SPOTIFY_KEY")
+	app.spotify_cred.secret = os.Getenv("SPOTIFY_SECRET")
+
+	if app.spotify_cred.key == "" {
+		log.Fatal("spotify key must be provided")
+	}
+
+	if app.spotify_cred.secret == "" {
+		log.Fatal("spotify secret must be provided")
+	}
+
+	var err error
+	app.sp, err = NewSpotify(app.spotify_cred.key, app.spotify_cred.secret)
+	if err != nil {
+		log.Fatalln("Error setting up spotify:", err)
+	}
+
+	if err != nil {
+		panic(err)
+	}
+
+	app.conn, err = grpc.Dial("127.0.0.1:9080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	if err != nil {
+		log.Fatal("While trying to dial gRPC")
+	}
+
+	app.templates, err = template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "artistsNames": artistNames, "toUrl": toUrl, "typeText": typeText}).ParseGlob("templates/*.tmpl")
+	//t, err := template.ParseGlob("templates/*.tmpl")
+
+	if err != nil {
+		panic(err)
+	}
+
+	if app.debug {
+		http.HandleFunc("/sse", app.sse)
+	}
+
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	http.HandleFunc("/read/", app.readCounter)
+	http.HandleFunc("/spotify", app.basicAuth(app.spotify))
+	http.HandleFunc("/api/content/extra", app.apiExtraContent)
+	http.HandleFunc("/recension.php", app.handleOldReview)
+	http.HandleFunc("/artikel.php", app.handleOldArticle)
+	http.HandleFunc("/artist.php", app.handleOldArtist)
+
+	http.HandleFunc("/", app.handler)                            // set router
+	err = http.ListenAndServe(fmt.Sprintf(":%d", app.port), nil) // set listen port
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}

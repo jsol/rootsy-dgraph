@@ -1,0 +1,29 @@
+{{ define "spotify" }}
+<html>
+  <head>
+  <title>Spotify URL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="stylesheet" type="text/css" href="/static/admin.css">
+  </head>
+  <body>
+<img src="{{ .Image }}">
+<h3>{{ .Artist }} - {{ .Name }}</h3>
+
+<form method="post" action="/spotify">
+  <input type="hidden" name = "id" value ="{{ .Id }}">
+   <input type="hidden" name = "oldid" value ="{{ .OldId }}">
+  {{ range .Options }}
+    <div class = "opt">
+    <label><img src = "{{ .Image }}" ><input type="radio" value ="{{ .Url }}" name = "url"> {{ .Name }}</label>
+    </div>
+  {{ end }}
+
+    <div class = "opt">
+    <label><input type="radio" value ="" name = "url" checked> No link</label>
+    </div>
+
+    <input type ="submit" value="save">
+</form>
+</body>
+</html>
+{{ end }}
