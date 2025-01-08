@@ -1056,6 +1056,8 @@ func main() {
 
 	user := os.Getenv("AUTH_USERNAME")
 	password := os.Getenv("AUTH_PASSWORD")
+	// "127.0.0.1:9080"
+	dgraph := os.Getenv("DGRAPH_URL")
 
 	if user == "" {
 		log.Fatal("basic auth username must be provided")
@@ -1063,6 +1065,10 @@ func main() {
 
 	if password == "" {
 		log.Fatal("basic auth password must be provided")
+	}
+
+	if dgraph == "" {
+		log.Fatal("DGraph URL must be provided")
 	}
 
 	app.auth.username = sha256.Sum256([]byte(user))
@@ -1089,7 +1095,7 @@ func main() {
 		panic(err)
 	}
 
-	app.conn, err = grpc.Dial("127.0.0.1:9080", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	app.conn, err = grpc.Dial(dgraph, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	if err != nil {
 		log.Fatal("While trying to dial gRPC")
