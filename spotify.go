@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -53,6 +54,29 @@ type SearchResponse struct {
 	} `json:"albums"`
 }
 
+type TrackListResponse struct {
+	Items []struct {
+		Track struct {
+			Uri string `json:"uri"`
+		} `json:"track"`
+	} `json:"items"`
+}
+type AlbumTrackListResponse struct {
+	Items []struct {
+		Uri string `json:"uri"`
+	} `json:"items"`
+}
+
+type TrackListReq struct {
+	Tracks []struct {
+		Uri string `json:"uri"`
+	} `json:"tracks"`
+}
+
+type AddTracksToPlaylist struct {
+	Uris []string `json:"uris"`
+}
+
 type SpotifyOption struct {
 	Url   string
 	Name  string
@@ -103,6 +127,179 @@ func (sp *Spotify) Login() error {
 
 	sp.token = cred.AccessToken
 	sp.expires = time.Now().Unix() + cred.Duration
+
+	return nil
+}
+
+func (sp *Spotify) getDeleteReq(playlistId string) (*TrackListReq, error) {
+	url := "https://api.spotify.com/v1/playlists/" + playlistId + "/tracks"
+
+	http_client := http.Client{
+		Timeout: time.Second * 5, // Timeout after 5 seconds
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sp.token))
+
+	q := req.URL.Query()
+	q.Add("fields", "items.track.uri")
+
+	req.URL.RawQuery = q.Encode()
+
+	res, getErr := http_client.Do(req)
+	if getErr != nil {
+		return nil, getErr
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	body, readErr := io.ReadAll(res.Body)
+	if readErr != nil {
+		return nil, readErr
+	}
+
+	found := TrackListResponse{}
+	list := TrackListReq{}
+
+	jsonErr := json.Unmarshal(body, &found)
+	if jsonErr != nil {
+		return nil, jsonErr
+	}
+
+	for _, t := range found.Items {
+		list.Tracks = append(list.Tracks, t.Track)
+	}
+
+	return &list, nil
+}
+
+func (sp *Spotify) GetAlbumTracks(albumId string) (*AddTracksToPlaylist, error) {
+	url := "https://api.spotify.com/v1/albums/" + albumId + "/tracks"
+
+	http_client := http.Client{
+		Timeout: time.Second * 5, // Timeout after 5 seconds
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sp.token))
+
+	res, getErr := http_client.Do(req)
+	if getErr != nil {
+		return nil, getErr
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	body, readErr := io.ReadAll(res.Body)
+	if readErr != nil {
+		return nil, readErr
+	}
+
+	found := AlbumTrackListResponse{}
+	list := AddTracksToPlaylist{}
+
+	jsonErr := json.Unmarshal(body, &found)
+	if jsonErr != nil {
+		return nil, jsonErr
+	}
+
+	for _, t := range found.Items {
+		list.Uris = append(list.Uris, t.Uri)
+	}
+
+	return &list, nil
+}
+
+func (sp *Spotify) AddAlbumToPlaylist(playlistId, albumId string) error {
+	url := "https://api.spotify.com/v1/playlists/" + playlistId + "/tracks"
+
+	http_client := http.Client{
+		Timeout: time.Second * 5, // Timeout after 5 seconds
+	}
+
+	addReq, err := sp.GetAlbumTracks(albumId)
+	if err != nil {
+		return err
+	}
+
+	sendBody, err := json.Marshal(addReq)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(sendBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sp.token))
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := http_client.Do(req)
+
+	if err != nil {
+		return err
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	if res.StatusCode != 200 {
+		return fmt.Errorf("Bad response code when adding the tracks: %d", res.StatusCode)
+	}
+
+	return nil
+}
+
+func (sp *Spotify) ClearPlaylist(playlistId string) error {
+	url := "https://api.spotify.com/v1/playlists/" + playlistId + "/tracks"
+
+	http_client := http.Client{
+		Timeout: time.Second * 5, // Timeout after 5 seconds
+	}
+
+	deleteReq, err := sp.getDeleteReq(playlistId)
+	if err != nil {
+		return err
+	}
+
+	sendBody, err := json.Marshal(deleteReq)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, url, bytes.NewReader(sendBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", sp.token))
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := http_client.Do(req)
+
+	if err != nil {
+		return err
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	if res.StatusCode != 200 {
+		return fmt.Errorf("Bad response code when deleting the tracks: %d", res.StatusCode)
+	}
 
 	return nil
 }

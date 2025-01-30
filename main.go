@@ -35,11 +35,13 @@ type application struct {
 		key    string
 		secret string
 	}
-	port      int
-	sp        *Spotify
-	conn      *grpc.ClientConn
-	templates *template.Template
-	debug     bool
+	port         int
+	sp           *Spotify
+	conn         *grpc.ClientConn
+	templates    *template.Template
+	debug        bool
+	StaticPath   string
+	TemplatePath string
 }
 
 type DGraphLink struct {
@@ -149,7 +151,19 @@ type PrintSpotify struct {
 	Options []SpotifyOption
 }
 
+func clearMarkers(input string) string {
+	input = regexp.MustCompile(`\[.*\]`).ReplaceAllString(input, "")
+	input = regexp.MustCompile(`\"(.*?)\"`).ReplaceAllString(input, "»$1«")
+	input = regexp.MustCompile(`”(.*?)”`).ReplaceAllString(input, "»$1«")
+	input = regexp.MustCompile(`<94>(.*?)<94>`).ReplaceAllString(input, "»$1«")
+
+	return input
+}
+
 func escapeText(input string) template.HTML {
+	input = regexp.MustCompile(`\"(.*?)\"`).ReplaceAllString(input, "»$1«")
+	input = regexp.MustCompile(`”(.*?)”`).ReplaceAllString(input, "»$1«")
+	input = regexp.MustCompile(`<94>(.*?)<94>`).ReplaceAllString(input, "»$1«")
 	input = template.HTMLEscapeString(input)
 	input = regexp.MustCompile(`\n`).ReplaceAllString(input, "<br>")
 	input = regexp.MustCompile(`\[b\](.*?)\[/b\]`).ReplaceAllString(input, "<b>$1</b>")
@@ -159,10 +173,8 @@ func escapeText(input string) template.HTML {
 	input = regexp.MustCompile(`\[http://(.*?)\]`).ReplaceAllString(input, "<a href='http://$1' target='_blank'>$1</a>")
 	input = regexp.MustCompile(`\[url http://www.rootsy.nu/(.*?)\](.*?)\[/url\]`).ReplaceAllString(input, "<a href='http://www.rootsy.nu/$1'>$2</a>")
 	input = regexp.MustCompile(`\[url (.*?)\](.*?)\[/url\]`).ReplaceAllString(input, "<a href='$1' target='_blank'>$2</a>")
-	input = regexp.MustCompile(`\[img ([^ ]*?)\]`).ReplaceAllString(input, "<img src='http://www.rootsy.nu/bilder/extra/$1'>")
-	input = regexp.MustCompile(`\[img ([^ ]*?) (.*?)]`).ReplaceAllString(input, "<img src='http://www.rootsy.nu/bilder/extra/$1' TITLE='$2'>")
-	input = regexp.MustCompile(`\"(.*?)\"`).ReplaceAllString(input, "»$1«")
-	input = regexp.MustCompile(`<94>(.*?)<94>`).ReplaceAllString(input, "»$1«")
+	input = regexp.MustCompile(`\[img ([^ ]*?)\]`).ReplaceAllString(input, "<img src='http://files.rootsy.nu/rpb/extra/$1'>")
+	input = regexp.MustCompile(`\[img ([^ ]*?) (.*?)]`).ReplaceAllString(input, "<img src='http://files.rootsy.nu/rpb/extra/$1' TITLE='$2'>")
 	/**
 
 
@@ -391,7 +403,7 @@ func (app *application) apiExtraContent(w http.ResponseWriter, r *http.Request) 
 			Name:       c.Name,
 			Uid:        c.Uid,
 			Url:        fmt.Sprintf("/content/%s/%s", c.Uid, toUrl(c.Name)),
-			LeadInText: string(escapeText(c.LeadInText)),
+			LeadInText: string(clearMarkers(c.LeadInText)),
 			Pic:        c.Pic,
 			Type:       c.Type,
 			TypeText:   typeText(c.Type),
@@ -499,7 +511,6 @@ func (app *application) printContent(uid string, wr io.Writer, ctx context.Conte
 
 	var resp ContentResponse
 
-	//fmt.Println(string(res.Json))
 	err = json.Unmarshal(res.Json, &resp)
 
 	if err != nil {
@@ -509,9 +520,6 @@ func (app *application) printContent(uid string, wr io.Writer, ctx context.Conte
 	c := resp.Content[0]
 	for _, l := range c.Label {
 		pickContent(c.Uid, &c.Content, l.Content, 6)
-		fmt.Println(" =================== ")
-
-		fmt.Println("Label: ")
 		for _, c2 := range l.Content {
 
 			fmt.Println(c2.Name)
@@ -520,9 +528,6 @@ func (app *application) printContent(uid string, wr io.Writer, ctx context.Conte
 
 	for _, l := range c.Artist {
 		pickContent(c.Uid, &c.Content, l.Content, 10)
-		fmt.Println(" =================== ")
-
-		fmt.Println("Artist: ")
 		for _, c2 := range l.Content {
 
 			fmt.Println(c2.Name)
@@ -549,8 +554,6 @@ func (app *application) printContent(uid string, wr io.Writer, ctx context.Conte
 
 	updateRandom(c.Content, dg, ctx)
 
-	fmt.Println(" =================== ")
-	fmt.Println("Content: ")
 	for _, c2 := range c.Content {
 
 		fmt.Println(c2.Name)
@@ -699,11 +702,11 @@ func (app *application) sse(w http.ResponseWriter, r *http.Request) {
 
 	defer watcher.Close()
 
-	err = watcher.Add("./templates")
+	err = watcher.Add(app.TemplatePath)
 	if err != nil {
 		panic(err)
 	}
-	err = watcher.Add("./static")
+	err = watcher.Add(app.StaticPath)
 	if err != nil {
 		panic(err)
 	}
@@ -719,7 +722,7 @@ func (app *application) sse(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if ev.Has(fsnotify.Write) {
-				tmp, err := template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "artistsNames": artistNames, "toUrl": toUrl, "typeText": typeText}).ParseGlob("templates/*.tmpl")
+				tmp, err := template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "clearMarkers": clearMarkers, "artistsNames": artistNames, "toUrl": toUrl, "typeText": typeText}).ParseGlob(app.TemplatePath + "/*.tmpl")
 				//t, err := template.ParseGlob("templates/*.tmpl")
 
 				if err != nil {
@@ -919,7 +922,7 @@ func (app *application) spotify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := `query SpotifyQuery {
-		content (func: eq(spotify, "x"), first: 1) @filter(type(Content)) {
+		content (func: eq(spotify, "x"), first: 1) @filter(type(Content) AND NOT eq(type, "article")) {
 			uid
 			oldId
 			pic
@@ -952,7 +955,10 @@ func (app *application) spotify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artistName := resp.Content[0].Artist[0].Name
+	artistName := "No artist"
+	if len(resp.Content) > 0 && len(resp.Content[0].Artist) > 0 {
+		artistName = resp.Content[0].Artist[0].Name
+	}
 	album := resp.Content[0].Name
 
 	opts, err := app.sp.Search(strings.TrimSuffix(strings.TrimSuffix(artistName, ", The"), ", the"), album)
@@ -1050,6 +1056,10 @@ func (app *application) basicAuth(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+func (app *application) favicon(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, app.StaticPath+"/favicon.ico")
+}
+
 func main() {
 	app := new(application)
 	app.port = 9090
@@ -1070,6 +1080,9 @@ func main() {
 	if dgraph == "" {
 		log.Fatal("DGraph URL must be provided")
 	}
+
+	app.StaticPath = "/static"
+	app.TemplatePath = "/templates"
 
 	app.auth.username = sha256.Sum256([]byte(user))
 	app.auth.password = sha256.Sum256([]byte(password))
@@ -1095,13 +1108,25 @@ func main() {
 		panic(err)
 	}
 
+	if len(os.Args) == 2 && os.Args[1] == "spotify" {
+		err = app.sp.ClearPlaylist("39kgihD6NPmYjAKM8wKCoM")
+		if err != nil {
+			panic(err)
+		}
+		err = app.sp.AddAlbumToPlaylist("39kgihD6NPmYjAKM8wKCoM", "34xaLN7rDecGEK5UGIVbeJ")
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
 	app.conn, err = grpc.Dial(dgraph, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	if err != nil {
 		log.Fatal("While trying to dial gRPC")
 	}
 
-	app.templates, err = template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "artistsNames": artistNames, "toUrl": toUrl, "typeText": typeText}).ParseGlob("templates/*.tmpl")
+	app.templates, err = template.New("rootsy").Funcs(template.FuncMap{"escapeText": escapeText, "clearMarkers": clearMarkers, "artistsNames": artistNames, "toUrl": toUrl, "typeText": typeText}).ParseGlob(app.TemplatePath + "/*.tmpl")
 	//t, err := template.ParseGlob("templates/*.tmpl")
 
 	if err != nil {
@@ -1112,7 +1137,8 @@ func main() {
 		http.HandleFunc("/sse", app.sse)
 	}
 
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+	http.HandleFunc("/favicon.ico", app.favicon)
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(app.StaticPath))))
 	http.HandleFunc("/read/", app.readCounter)
 	http.HandleFunc("/spotify", app.basicAuth(app.spotify))
 	http.HandleFunc("/api/content/extra", app.apiExtraContent)

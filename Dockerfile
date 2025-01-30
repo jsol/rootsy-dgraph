@@ -10,13 +10,13 @@ RUN apk update && apk add --no-cache git ca-certificates && update-ca-certificat
 ENV USER=appuser
 ENV UID=10001
 # See https://stackoverflow.com/a/55757473/12429735RUN 
-RUN adduser \    
-    --disabled-password \    
-    --gecos "" \    
-    --home "/nonexistent" \    
-    --shell "/sbin/nologin" \    
-    --no-create-home \    
-    --uid "${UID}" \    
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
     "${USER}"
 
 WORKDIR $GOPATH/src/mypackage/myapp/
@@ -36,7 +36,8 @@ COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 # Copy our static executable
 COPY --from=builder /go/bin/app /go/bin/app
-
+COPY templates /templates/
+COPY static /static/
 # Use an unprivileged user.
 USER appuser:appuser
 

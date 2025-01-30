@@ -3,11 +3,43 @@
 * {
     box-sizing: border-box;
 }
+@font-face {
+    font-family: 'Hind-Bold'; /*a name to be used later*/
+    src: url('/static/Hind-Bold.ttf'); /*URL to font*/
+}
+@font-face {
+    font-family: 'Montserrat-Regular'; /*a name to be used later*/
+    src: url('/static/Montserrat-Regular.ttf'); /*URL to font*/
+}
+
 .header {
     position:relative;
     width: 100%;
     height: 42px;
     background-color: #d25c02;
+}
+
+article a {
+    font-weight: bold;
+    color: rgb(112, 112, 112);
+    text-decoration: underline;
+}
+
+h3 {
+    font-family: 'Hind-Bold';
+    font-size: 24px;
+}
+
+h4 {
+    margin-top: 4px;
+    margin-bottom: 4px;
+    font-family: 'Hind-Bold';
+    font-size: 16px;
+}
+
+.text {
+  font-family: 'Montserrat-Regular';
+  line-height: 1.6;
 }
 
 form {
@@ -46,9 +78,12 @@ form {
     margin-top: 15px;
 }
 .writtenBy {
+  position: absolute;
+  background-color: white;
     font-style: italic;
-    margin-top: -5px;
-    margin-bottom: 10px;
+    bottom: 2px;
+    right: 3px;
+    padding-left: 7px;
 }
 
 .cheader {
@@ -60,18 +95,18 @@ form {
 }
 
 .cheader-review {
-    background-color: #5cd202;
+    background-color: #948ccc;
 }
 
 .cheader-article {
-    background-color: #e2126c;
+    background-color: #53aec4;
 }
 .cheader-chart {
-    background-color: #e2e26c;
+    background-color: #f8d200;
 }
 
 .cheader-pitch {
-    background-color: #6ce2e2;
+    background-color: #f8d200;
 }
 
 #upper {

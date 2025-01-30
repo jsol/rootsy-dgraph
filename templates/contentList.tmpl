@@ -8,12 +8,15 @@
   <div class="cheader cheader-{{ .Type }}">{{ typeText .Type }} </div>
   <img src="{{ .Pic }}">
   <div class="innerItem">
-  <h3>{{ .Name }}</h3>
-  <div class="writtenBy">{{ range .WrittenBy }} {{.Name }} {{ end }}</div>
+  <h4>{{ .Name }}</h4>
   <div class="leadin">
-  {{ .LeadInText   }}
+  {{ clearMarkers .LeadInText   }}
   </div>
-  <div class="fade-out">&nbsp;</div>
+  <div class="fade-out">&nbsp;
+
+  <div class="writtenBy">{{ range .WrittenBy }} {{.Name }} {{ end }}</div>
+
+  </div>
   </div>
   </a>
   </div>
@@ -33,7 +36,7 @@
       const $co = $cl.querySelector(".contentListItem")
       for (const i of items) {
         const $c = $co.cloneNode(true)
-        $c.querySelector("h3").innerHTML = i.name
+        $c.querySelector("h4").innerHTML = i.name
         $c.querySelector("a").href = i.url
         $c.querySelector("img").src = i.pic
         $c.querySelector(".leadin").innerHTML = i.lead_in_text
