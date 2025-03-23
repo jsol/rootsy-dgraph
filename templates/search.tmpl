@@ -11,8 +11,27 @@ Kunde inte hitta något.
 </div>
 
 {{ if . }}
-{{ template "contentList" . }}
+<div id ="cl" class="contentList">
+{{range .}}
+  <div class="contentListItem">
+<a href="/content/{{ .Uid }}/{{ toUrl .Name }}" >
+  <div class="cheader cheader-{{ .Type }}">{{ typeText .Type }} </div>
+  <img src="{{ .Pic }}">
+  <div class="innerItem">
+  <h4>{{ .Name }}</h4>
+  <div class="leadin">
+  {{ clearMarkers .LeadInText   }}
+  </div>
+  <div class="fade-out">&nbsp;
+
+  <div class="writtenBy">{{ range .WrittenBy }} {{.Name }} {{ end }}</div>
+
+  </div>
+  </div>
+  </a>
+  </div>
 {{end}}
 
+{{end}}
 {{ template "footer"  }}
 {{end}}

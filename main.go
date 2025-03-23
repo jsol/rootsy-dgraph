@@ -253,8 +253,6 @@ func (app *application) printStart(wr io.Writer, ctx context.Context) {
 			  written_by {
 				  name
 			  }
-
-
 	}
 	}
 			  extra(func:has(read_count), orderasc:read_count, orderasc:random, first: 15) @filter(type(Content)) {
