@@ -1,0 +1,25 @@
+{{ define "stats" }}
+<html>
+  <head>
+  <title>Stats</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="stylesheet" type="text/css" href="/static/admin.css">
+  </head>
+  <body>
+
+{{ range . }}
+<div>
+<img src="{{ .Pic }}">
+{{ if .Artist }}
+{{ range .Artist }} {{ .Name }} {{end}}
+-
+{{ end }}
+{{ .Name }}
+({{ range .WrittenBy }} {{ .Name }} {{end}})
+:
+{{ .ReadCount }}
+</div>
+{{ end }}
+</body>
+</html>
+{{ end }}

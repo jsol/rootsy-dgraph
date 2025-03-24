@@ -40,5 +40,6 @@ COPY templates /templates/
 COPY static /static/
 # Use an unprivileged user.
 USER appuser:appuser
+ENV ROOT_PATH="/"
 
 ENTRYPOINT ["/go/bin/app"]

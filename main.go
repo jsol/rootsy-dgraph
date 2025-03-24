@@ -101,6 +101,18 @@ type DGraphContent struct {
 	Content     []DGraphContent
 }
 
+type DGraphStats struct {
+	Uid       string              `json:"uid,omitempty"`
+	Name      string              `json:"name"`
+	WrittenBy []DGraphContributor `json:"written_by"`
+	Artist    []DGraphArtist      `json:"artist"`
+	Pic       string              `json:"pic"`
+	ReadCount int                 `json:"read_count"`
+	ViewCount int                 `json:"view_count"`
+	Type      string              `json:"type"`
+	DType     string              `json:"dgraph.type,omitempty"`
+}
+
 type Counter struct {
 	Name      string `json:"name"`
 	Uid       string `json:"uid"`
@@ -111,6 +123,10 @@ type Random struct {
 	Uid       string `json:"uid"`
 	Random    int    `json:"random"`
 	ViewCount int    `json:"view_count"`
+}
+
+type StatsResponse struct {
+	Stats []DGraphStats `json:"content"`
 }
 
 type CounterResponse struct {
@@ -976,6 +992,47 @@ func (app *application) spotify(w http.ResponseWriter, r *http.Request) {
 	app.executeTemplate(w, "spotify", item)
 }
 
+func (app *application) stats(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	dc := api.NewDgraphClient(app.conn)
+	dg := dgo.NewDgraphClient(dc)
+
+	q := `query StatsQuery {
+    		content (func: has(read_count), orderdesc:read_count, first: 50) @filter(type(Content)) {
+        name
+        pic
+    read_count
+    view_count
+    written_by {
+			name
+    }
+    artist{
+	    name
+    }
+		}
+	  }`
+
+	txn := dg.NewTxn()
+	defer txn.Discard(ctx)
+
+	res, err := txn.Query(ctx, q)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	var resp StatsResponse
+
+	//fmt.Println(string(res.Json))
+	err = json.Unmarshal(res.Json, &resp)
+
+	if err != nil {
+		panic(err)
+	}
+
+	app.executeTemplate(w, "stats", resp.Stats)
+}
+
 func (app *application) handleOldContent(prefix, cat string, w http.ResponseWriter, r *http.Request) {
 
 	id := r.URL.Query()["id"]
@@ -1064,6 +1121,7 @@ func main() {
 
 	user := os.Getenv("AUTH_USERNAME")
 	password := os.Getenv("AUTH_PASSWORD")
+	root_path := os.Getenv("STATIC_PATH")
 	// "127.0.0.1:9080"
 	dgraph := os.Getenv("DGRAPH_URL")
 
@@ -1079,8 +1137,8 @@ func main() {
 		log.Fatal("DGraph URL must be provided")
 	}
 
-	app.StaticPath = "/static"
-	app.TemplatePath = "/templates"
+	app.StaticPath = root_path + "static"
+	app.TemplatePath = root_path + "templates"
 
 	app.auth.username = sha256.Sum256([]byte(user))
 	app.auth.password = sha256.Sum256([]byte(password))
@@ -1139,6 +1197,7 @@ func main() {
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir(app.StaticPath))))
 	http.HandleFunc("/read/", app.readCounter)
 	http.HandleFunc("/spotify", app.basicAuth(app.spotify))
+	http.HandleFunc("/stats", app.basicAuth(app.stats))
 	http.HandleFunc("/api/content/extra", app.apiExtraContent)
 	http.HandleFunc("/recension.php", app.handleOldReview)
 	http.HandleFunc("/artikel.php", app.handleOldArticle)
